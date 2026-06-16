@@ -33,6 +33,9 @@ jobs:
           channel: 'stable'
           cache: true
 
+      - name: Inyectar token Mapbox en gradle.properties
+        run: echo "MAPBOX_DOWNLOADS_TOKEN=${{ secrets.MAPBOX_DOWNLOADS_TOKEN }}" >> android/gradle.properties
+
       - name: Crear archivo .env
         env:
           MAPBOX_TOKEN: ${{ secrets.MAPBOX_ACCESS_TOKEN }}
