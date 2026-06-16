@@ -33,6 +33,20 @@ jobs:
           channel: 'stable'
           cache: true
 
+      - name: Crear archivo .env
+        env:
+          MAPBOX_TOKEN: ${{ secrets.MAPBOX_ACCESS_TOKEN }}
+          BACKEND_URL: ${{ secrets.API_BASE_URL }}
+        run: |
+          printf 'SAA_AUTH_URL=http://3.150.245.61:9080/appComponenteWeb/SAA/token/usuario/generar\n' >  .env
+          printf 'SAA_LOGOUT_URL=http://3.150.245.61:9080/appComponenteWeb/SAA/token/cerrarSesion\n'  >> .env
+          printf 'SAA_RENEW_URL=http://3.150.245.61:9080/appComponenteWeb/SAA/token/renovar\n'        >> .env
+          printf 'URL_BACKEND=%s\n'          "$BACKEND_URL"  >> .env
+          printf 'MAPBOX_ACCESS_TOKEN=%s\n'  "$MAPBOX_TOKEN" >> .env
+          printf 'MAPBOX_STYLE_ID=mapbox/streets-v12\n'      >> .env
+          printf 'USE_MAPBOX_NATIVE_MAP=false\n'             >> .env
+          printf 'USE_NATIVE_NAVIGATION=true\n'              >> .env
+
       - name: Instalar dependencias
         run: flutter pub get
 
