@@ -1,0 +1,99 @@
+name: CI/CD Mobile (APK)
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+env:
+  AWS_REGION:  us-west-2
+  S3_BUCKET:   thaqhiri-dev-apk-023894313590
+  APP_VERSION: "1.0.0"
+
+jobs:
+  build:
+    name: Build APK
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Configurar Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.32.2'
+          channel: 'stable'
+          cache: true
+
+      - name: Instalar dependencias
+        run: flutter pub get
+
+      - name: Build APK Release
+        run: |
+          flutter build apk --release \
+            --build-number=${{ github.run_number }} \
+            --build-name="${{ env.APP_VERSION }}" \
+            --dart-define=MAPBOX_ACCESS_TOKEN=${{ secrets.MAPBOX_ACCESS_TOKEN }} \
+            --dart-define=MAPBOX_STYLE_ID=mapbox/streets-v12 \
+            --dart-define=USE_MAPBOX_NATIVE_MAP=false \
+            --dart-define=USE_NATIVE_NAVIGATION=true \
+            --dart-define=API_BASE_URL=${{ secrets.API_BASE_URL }}
+
+      - name: Renombrar APK con versión
+        run: |
+          VERSION="${{ env.APP_VERSION }}+${{ github.run_number }}"
+          cp build/app/outputs/flutter-apk/app-release.apk \
+             build/app/outputs/flutter-apk/thaqhiri-$VERSION.apk
+          echo "APK generado: thaqhiri-$VERSION.apk"
+
+      - name: Subir artefacto APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk-release
+          path: build/app/outputs/flutter-apk/thaqhiri-*.apk
+          retention-days: 7
+
+  deploy:
+    name: Publicar APK en S3
+    runs-on: ubuntu-latest
+    needs: build
+
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Descargar APK
+        uses: actions/download-artifact@v4
+        with:
+          name: apk-release
+          path: apk
+
+      - name: Configurar credenciales AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Publicar APK en S3
+        run: |
+          VERSION="${{ env.APP_VERSION }}+${{ github.run_number }}"
+          APK_FILE="apk/thaqhiri-${VERSION}.apk"
+          S3_PATH="s3://${{ env.S3_BUCKET }}/thaqhiri-${VERSION}.apk"
+          aws s3 cp "$APK_FILE" "$S3_PATH"
+          echo "✔ APK publicado:"
+          echo "  → $S3_PATH"
+
+          # Actualizar también el APK "latest" para facilitar descarga
+          aws s3 cp "$APK_FILE" "s3://${{ env.S3_BUCKET }}/thaqhiri-latest.apk"
+          echo "  → s3://${{ env.S3_BUCKET }}/thaqhiri-latest.apk"
